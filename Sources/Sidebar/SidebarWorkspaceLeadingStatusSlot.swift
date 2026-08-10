@@ -14,7 +14,14 @@ struct SidebarWorkspaceLeadingStatusSlot: View {
     let spinnerTooltip: String
 
     var body: some View {
-        ZStack {
+        HStack(spacing: showsBadge && showsSpinner ? 4 : 0) {
+            if showsSpinner {
+                SidebarWorkspaceLoadingSpinner(
+                    side: spinnerSide,
+                    color: spinnerColor,
+                    tooltip: spinnerTooltip
+                )
+            }
             if showsBadge {
                 SidebarWorkspaceUnreadBadge(
                     unreadCount: unreadCount,
@@ -23,17 +30,8 @@ struct SidebarWorkspaceLeadingStatusSlot: View {
                     fillColor: badgeFillColor,
                     textColor: badgeTextColor
                 )
-                .opacity(showsSpinner ? 0 : 1)
-            }
-            if showsSpinner {
-                SidebarWorkspaceLoadingSpinner(
-                    side: spinnerSide,
-                    color: spinnerColor,
-                    tooltip: spinnerTooltip
-                )
             }
         }
-        .frame(width: side, height: side)
-        .clipped()
+        .frame(height: max(side, spinnerSide))
     }
 }

@@ -615,8 +615,8 @@ final class SidebarWorkspaceRowTableCellView: NSTableCellView {
         let leadingSpinnerVisible = spinnerVisible && model.settings.loadingSpinnerPosition == .leading
         let trailingSpinnerVisible = spinnerVisible && model.settings.loadingSpinnerPosition == .trailing
 
-        leadingBadge.isHidden = !leadingBadgeVisible || leadingSpinnerVisible
-        trailingBadge.isHidden = !trailingBadgeVisible || trailingSpinnerVisible || showsCloseNow
+        leadingBadge.isHidden = !leadingBadgeVisible
+        trailingBadge.isHidden = !trailingBadgeVisible || showsCloseNow
         if !leadingBadge.isHidden {
             leadingBadge.configure(count: model.unreadCount, fillColor: badgeFill, textColor: badgeText, font: badgeFont)
         }
@@ -1108,16 +1108,21 @@ final class SidebarWorkspaceRowTableCellView: NSTableCellView {
             )
         }
 
-        let leadingSlotActive = (!leadingBadge.isHidden) || (leadingSpinner?.isHidden == false)
+        let indicatorSpacing: CGFloat = 4
+        let leadingBadgeActive = !leadingBadge.isHidden
+        let leadingSpinnerActive = leadingSpinner?.isHidden == false
+        let leadingSlotActive = leadingBadgeActive || leadingSpinnerActive
         if leadingSlotActive {
-            let side = !leadingBadge.isHidden ? badgeSide : spinnerSide
-            if !leadingBadge.isHidden {
-                place(leadingBadge, size: NSSize(width: side, height: side), centerY: firstLineCenter)
-            }
-            if let spinner = leadingSpinner, !spinner.isHidden {
+            if leadingSpinnerActive, let spinner = leadingSpinner {
                 place(spinner, size: NSSize(width: spinnerSide, height: spinnerSide), centerY: firstLineCenter)
+                x += spinnerSide
             }
-            x += side + titleRowSpacing
+            if leadingBadgeActive {
+                if leadingSpinnerActive { x += indicatorSpacing }
+                place(leadingBadge, size: NSSize(width: badgeSide, height: badgeSide), centerY: firstLineCenter)
+                x += badgeSide
+            }
+            x += titleRowSpacing
         }
         if !pinImageView.isHidden {
             let side = model.scaled(9) + 4
@@ -1138,8 +1143,14 @@ final class SidebarWorkspaceRowTableCellView: NSTableCellView {
         // Trailing slot
         let closeHit = max(16, 16 * model.fontScale)
         let closeWidth = max(16, closeHit)
-        let trailingSlotActive = !trailingBadge.isHidden || (trailingSpinner?.isHidden == false) || model.canCloseWorkspace
-        let titleMaxX = trailingSlotActive ? (trailing - closeWidth - titleRowSpacing) : trailing
+        let trailingBadgeActive = !trailingBadge.isHidden
+        let trailingSpinnerActive = trailingSpinner?.isHidden == false
+        let trailingStatusWidth = (trailingBadgeActive ? badgeSide : 0)
+            + (trailingSpinnerActive ? spinnerSide : 0)
+            + (trailingBadgeActive && trailingSpinnerActive ? indicatorSpacing : 0)
+        let trailingSlotWidth = max(model.canCloseWorkspace ? closeWidth : 0, trailingStatusWidth)
+        let trailingSlotActive = trailingSlotWidth > 0
+        let titleMaxX = trailingSlotActive ? (trailing - trailingSlotWidth - titleRowSpacing) : trailing
         let titleWidth = max(10, titleMaxX - x)
         let renameField = renameSession?.field
         let titleHeight = renameField.map { ceil($0.intrinsicContentSize.height) }
@@ -1156,16 +1167,20 @@ final class SidebarWorkspaceRowTableCellView: NSTableCellView {
                 closeButton.frame = NSRect(
                     x: slotX, y: firstLineCenter - closeHit / 2, width: closeWidth, height: closeHit
                 )
-                if !trailingBadge.isHidden {
-                    trailingBadge.frame = NSRect(
-                        x: trailing - badgeSide, y: firstLineCenter - badgeSide / 2,
-                        width: badgeSide, height: badgeSide
+                var statusX = trailing
+                if trailingSpinnerActive, let spinner = trailingSpinner {
+                    statusX -= spinnerSide
+                    spinner.frame = NSRect(
+                        x: statusX, y: firstLineCenter - spinnerSide / 2,
+                        width: spinnerSide, height: spinnerSide
                     )
                 }
-                if let spinner = trailingSpinner, !spinner.isHidden {
-                    spinner.frame = NSRect(
-                        x: trailing - spinnerSide, y: firstLineCenter - spinnerSide / 2,
-                        width: spinnerSide, height: spinnerSide
+                if trailingBadgeActive {
+                    if trailingSpinnerActive { statusX -= indicatorSpacing }
+                    statusX -= badgeSide
+                    trailingBadge.frame = NSRect(
+                        x: statusX, y: firstLineCenter - badgeSide / 2,
+                        width: badgeSide, height: badgeSide
                     )
                 }
             }
