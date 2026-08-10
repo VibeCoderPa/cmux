@@ -1,4 +1,5 @@
 import AppKit
+import CmuxSettings
 import CmuxSidebar
 import Testing
 @testable import cmux_DEV
@@ -12,7 +13,8 @@ struct SidebarAppKitRowCellTests {
         title: String = "Workspace",
         customDescription: String? = nil,
         isPinned: Bool = false,
-        metadataEntries: [SidebarStatusEntry] = []
+        metadataEntries: [SidebarStatusEntry] = [],
+        activeCodingAgentCount: Int = 0
     ) -> SidebarWorkspaceSnapshotBuilder.Snapshot {
         SidebarWorkspaceSnapshotBuilder.Snapshot(
             presentationKey: SidebarWorkspaceSnapshotFactory.presentationKey(
@@ -33,7 +35,7 @@ struct SidebarAppKitRowCellTests {
             metadataBlocks: [],
             latestLog: nil,
             progress: nil,
-            activeCodingAgentCount: 0,
+            activeCodingAgentCount: activeCodingAgentCount,
             compactGitBranchSummaryText: nil,
             compactDirectoryCandidates: [],
             compactBranchDirectoryCandidates: [],
@@ -61,7 +63,9 @@ struct SidebarAppKitRowCellTests {
         settings: SidebarTabItemSettingsSnapshot? = nil,
         customDescription: String? = nil,
         metadataEntries: [SidebarStatusEntry] = [],
-        shortcutHintText: String? = nil
+        shortcutHintText: String? = nil,
+        unreadCount: Int = 0,
+        activeCodingAgentCount: Int = 0
     ) -> SidebarWorkspaceRowModel {
         let resolvedSettings = settings
             ?? SidebarTabItemSettingsSnapshot(defaults: UserDefaults(suiteName: UUID().uuidString)!)
@@ -71,7 +75,8 @@ struct SidebarAppKitRowCellTests {
             snapshot: makeSnapshot(
                 customDescription: customDescription,
                 isPinned: isPinned,
-                metadataEntries: metadataEntries
+                metadataEntries: metadataEntries,
+                activeCodingAgentCount: activeCodingAgentCount
             ),
             settings: resolvedSettings,
             isActive: isActive,
@@ -79,7 +84,7 @@ struct SidebarAppKitRowCellTests {
             hasUserCustomTitle: false,
             canCloseWorkspace: canClose,
             accessibilityWorkspaceCount: 1,
-            unreadCount: 0,
+            unreadCount: unreadCount,
             latestNotificationText: nil,
             showsAgentActivity: resolvedSettings.details.showAgentActivity,
             rowSpacing: 8,
@@ -156,6 +161,14 @@ struct SidebarAppKitRowCellTests {
 
     private static func makeDefaults() -> UserDefaults {
         UserDefaults(suiteName: "SidebarAppKitRowCellTests.\(UUID().uuidString)")!
+    }
+
+    private static func makeSettings(indicatorPosition: SidebarIndicatorPosition) -> SidebarTabItemSettingsSnapshot {
+        let defaults = makeDefaults()
+        let sidebar = SidebarCatalogSection()
+        defaults.set(indicatorPosition.rawValue, forKey: sidebar.loadingSpinnerPosition.userDefaultsKey)
+        defaults.set(indicatorPosition.rawValue, forKey: sidebar.notificationBadgePosition.userDefaultsKey)
+        return SidebarTabItemSettingsSnapshot(defaults: defaults)
     }
 
     private static func makeActions(
@@ -370,6 +383,32 @@ struct SidebarAppKitRowCellTests {
             clickedOnLink: link.url,
             at: link.range.location
         ) ?? false
+    }
+
+    @Test(arguments: SidebarIndicatorPosition.allCases)
+    func runningAndUnreadIndicatorsRemainVisibleTogether(_ position: SidebarIndicatorPosition) throws {
+        let settings = Self.makeSettings(indicatorPosition: position)
+        let model = Self.makeModel(
+            settings: settings,
+            unreadCount: 3,
+            activeCodingAgentCount: 1
+        )
+        let cell = Self.configuredCell(model: model)
+        let window = Self.layoutCell(cell, model: model)
+        defer { window.orderOut(nil) }
+
+        let visibleBadges = Self.descendants(of: cell)
+            .compactMap { $0 as? SidebarRowUnreadBadgeView }
+            .filter { !$0.isHidden }
+        let visibleSpinners = Self.descendants(of: cell)
+            .compactMap { $0 as? GPUSpinnerNSView }
+            .filter { !$0.isHidden }
+
+        #expect(visibleBadges.count == 1)
+        #expect(visibleSpinners.count == 1)
+        let badge = try #require(visibleBadges.first)
+        let spinner = try #require(visibleSpinners.first)
+        #expect(!badge.frame.intersects(spinner.frame))
     }
 
     private static func hitTestPoint(
